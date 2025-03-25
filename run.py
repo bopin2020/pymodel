@@ -37,16 +37,28 @@ def test_context_inject_manager():
     re = RootExpress()
     re.register_context("process",ProcessModel())
     re.register_context("memory",MemoryModel())
-
+    re.register_context("thread",ThreadModel())
+    register_envs()
     print(re.format_objmodel())
+    # todo
+    print(re.invoke("process.get_modules()"))
+    print(re.invoke("process.modules"))
+    #re.unregister_context("process")
+    print(re.invoke("process->get_pid()"))
 
-    result = re.invoke("process","get_modules",None,"process.get_modules()")
-    print(result)
-    print(re.invoke("process","modules",None,"process.modules",False))
-    re.unregister_context("process")
+    hexdump.hexdump(re.invoke("memory->get_bytes(None,0x40)"))
+    print(re.invoke("memory->test(0x10)"))
 
-    hexdump.hexdump(re.invoke("memory","get_bytes",[None,0x40],"memory->get_bytes(None,0x40)"))
-    re.invoke("memory","test",[1],"memory->test(1)")
+    print(re.invoke("process->get_pid() == 0"))
+    print(re.invoke("process->get_pid() > 0"))
+    print(re.invoke("process->get_pid() < 0"))
+    print(re.invoke("process->get_pid() != 0"))
+    print(re.invoke("process->get_pid() >= 0"))
+    print(re.invoke("process->get_pid() <= 0"))
+
+    print(re.invoke("process->get_name() == \"bopin\""))
+    print(re.invoke("process->get_name() == $COMSPEC"))
+    print(re.invoke("thread->get_tid(1,2) == 0"))
 
 def test_method_args():
     me = MethodExpress()
@@ -55,6 +67,8 @@ def test_method_args():
 
 if __name__ == '__main__':
     #test_sub()
-    test_rootexpress()
+    #test_rootexpress()
     #test_method_args()
+
+    test_context_inject_manager()
     pass

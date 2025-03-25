@@ -13,8 +13,8 @@ primitiveType = [
 ]
 
 boundary = [
-    ("&&","and"),
-    ("||","or"),
+    ("&&","AND"),
+    ("||","OR"),
 ]
 
 obj = [
@@ -66,6 +66,8 @@ class TokenType(IntEnum):
     BuiltInCustomVar = 8,
     Const = 9
 
+class MethodExpress: pass
+
 class Token():
     def __init__(self,data,type : TokenType):
         self.str = data
@@ -78,6 +80,14 @@ class Express():
     def __init__(self):
         pass
 
+class Operate(IntEnum):
+    EQ = 0,
+    NE = 1,
+    GT = 2,
+    LT = 3,
+    GE = 4,
+    LE = 5,
+
 class RootExpress(ConsoleLogable):
     def __init__(self):
         self.str = ""
@@ -89,6 +99,7 @@ class RootExpress(ConsoleLogable):
 
         self.subexpress = ''
         self.tokens = []
+        self.ctxtokens = []
 
     def register_context(self,name,ctx):
         self.ctxs[name] = ctx
@@ -101,15 +112,123 @@ class RootExpress(ConsoleLogable):
         for x in self.ctxs.keys():
             k += f'\t {x}\n'
         return f'root\n {k}'
-        
-    def invoke(self,name,method,args,expression = "",ismethod = True):
-        if hasattr(self.ctxs[name],method):
-            if ismethod:
-                if args is None:
-                    return getattr(self.ctxs[name],method)()
-                return getattr(self.ctxs[name],method)(*args)
+
+    def _eval(self,name,method,args):
+        """Eval a short expression to invoke and return its value,such as
+        obj.get_name()
+        obj.name
+        """
+        try:
+            if name not in self.ctxs.keys():
+                raise ValueError(f'{name} object is invalid')
+
+            if hasattr(self.ctxs[name],method):
+                if self.tokens[0]['ismethod'] == 'true':
+                    if args is None or len(args) == 0:
+                        return getattr(self.ctxs[name],method)()
+                    return getattr(self.ctxs[name],method)(*args)
+                else:
+                    return getattr(self.ctxs[name],method)
             else:
-                return getattr(self.ctxs[name],method)
+                raise ValueError(f'{name} object doesnt have {method}')
+        except Exception as e:
+            self.report(f'{str(e)}',2)
+        return None
+    
+    def invoke(self,expression):
+        try:
+            self.parse(expression)
+            #
+            # A single expression
+            #
+            if len(self.ctxtokens[0]) == 1:
+                name,method,args = self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
+                return self._eval(name,method,args)
+            else:
+                return self.operate()
+        except Exception as e:
+            self.report(f'{str(e)}',2)
+        return None
+
+    def _eval_left_right(self):
+        name,objname,method,args = '','','',''
+        tmp = ''
+        index = 0
+        for kv in self.ctxtokens[0]:
+            match kv.type:
+                case TokenType.Var:
+                    pass
+                case TokenType.LeftObjField:
+                    name,objname,method,args = self.tokens[0]['name'],self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
+                    tmp = self._eval(objname,method,args)
+                case TokenType.LeftObjMethod:
+                    name,objname,method,args = self.tokens[0]['name'],self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
+                    tmp = self._eval(objname,method,args)
+                case TokenType.Operation:
+                    tmp = kv.str
+                    if kv.str in ['==','-eq']:
+                        tmp = Operate.EQ
+                    if kv.str in ['!=','-ne']:
+                        tmp = Operate.NE
+                    if kv.str in ['>' , '-gt']:
+                        tmp = Operate.GT
+                    if kv.str in ['<' , '-lt']:
+                        tmp = Operate.LT
+                    if kv.str in ['>=' , '-ge']:
+                        tmp = Operate.GE
+                    if kv.str in ['<=' , '-le']:
+                        tmp = Operate.LE     
+                case TokenType.RightObjField:
+                    name,objname,method,args = self.tokens[1]['name'],self.tokens[1]['objname'],self.tokens[1]['methodname'],self.tokens[1]['methodparas']
+                    tmp = self._eval(objname,method,args)
+                case TokenType.RightObjMethod:
+                    name,objname,method,args = self.tokens[1]['name'],self.tokens[1]['objname'],self.tokens[1]['methodname'],self.tokens[1]['methodparas']
+                    tmp = self._eval(objname,method,args)
+                case TokenType.Boundary:
+                    pass
+                case TokenType.BuiltInVar:
+                    data = kv.str.strip('$')
+                    if kv.str in builtinVar:
+                        tmp = os.environ[data]
+                case TokenType.BuiltInCustomVar:
+                    pass
+                case TokenType.Const:
+                    print(kv.str)
+                    if index > 0:
+                        tmp = self.tokens[1]['name']
+                        if '"' not in tmp:
+                            tmp = int(tmp)
+                    else:
+                        tmp = self.tokens[0]['name']
+            index += 1
+            yield tmp
+
+    def operate(self):
+        """Make a determination between obj1 and obj2 which forms 
+            1. obj eval expression(field and method return value)  
+                                    =>  getpid() == getsessionid()
+            2. object compare       => obj1 == obj2
+            3. const compare        => 1 == 1    'bopin' == 'bopin'
+        compare type in primitiveType
+        """
+        tmp = list(self._eval_left_right())
+        print(tmp)
+        match tmp[1]:
+            case Operate.EQ:
+                return tmp[0] == tmp[2]
+            case Operate.NE:
+                return tmp[0] != tmp[2]
+            case Operate.GT:
+                return tmp[0] > tmp[2]
+            case Operate.LT:
+                return tmp[0] < tmp[2]
+            case Operate.GE:
+                return tmp[0] >= tmp[2]
+            case Operate.LE:
+                return tmp[0] <= tmp[2]
+
+    def eval(self,expression):
+        pass
 
     def register_builtin_vars(self,var,value):
         """Append the built-in variables, for examples
@@ -121,6 +240,8 @@ class RootExpress(ConsoleLogable):
         self.builtinVar[var] = value
 
     def parse(self,input):
+        self.tokens.clear()
+        self.ctxtokens.clear()
         self.str = input
         off = 0
         state = ParseState.Init
@@ -154,6 +275,9 @@ class RootExpress(ConsoleLogable):
                 case ParseState.SubState:
                     ce = ChildExpress()
                     ce.parse(self.subexpress)
+                    self.tokens.append(ce.left)
+                    self.tokens.append(ce.right)
+                    self.ctxtokens.append(ce.tokens)
                     self.subexpress = ''
                     accum = ''
                     self.report(ce.tokens,2)
@@ -165,8 +289,6 @@ class RootExpress(ConsoleLogable):
                 case ParseState.Operation:
                     pass
             off += 1
-
-class MethodExpress: pass
 
 class ChildExpress(ConsoleLogable):
     def __init__(self):
@@ -269,7 +391,7 @@ class ChildExpress(ConsoleLogable):
                     #print(f'{tag}  {tag2}')
                     c1 = list(map(lambda x: x[0],primitiveType))
                     c2 = list(map(lambda x: x[1],primitiveType))
-                    if (tag not in c1 and tag not in c2) and (tag2 not in c1 and tag2 not in c2):
+                    if (cr not in c1) and (tag not in c1 and tag not in c2) and (tag2 not in c1 and tag2 not in c2) and off < len(input):
                         accum += cr
                     else:
                         accum = accum.strip()
@@ -285,7 +407,7 @@ class ChildExpress(ConsoleLogable):
                                 result = MethodExpress().parse(self.left['methodname'])
                                 self.left['methodname'] = result['methodname']
                                 self.left['methodparas'] = result['methodparas']
-                                print(json.dumps(self.left,indent=4))
+                                self.report(json.dumps(self.left,indent=4),4)
                                 self.tokens.append(Token(data,TokenType.LeftObjMethod))
                             else:
                                 self.left['ismethod'] = 'false'
@@ -298,12 +420,18 @@ class ChildExpress(ConsoleLogable):
                         self.operation = tag
                         self.tokens.append(Token(tag,TokenType.Operation))
                         state = TokenState.RightInit    
-                        off += 1   
+                        off += 2
+                        continue
                     if tag2 in c2:
                         self.operation = tag2
                         self.tokens.append(Token(tag2,TokenType.Operation))
                         state = TokenState.RightInit
                         off += 2
+                        continue
+                    if cr == '>' or cr == '<':
+                        self.operation = cr
+                        self.tokens.append(Token(cr,TokenType.Operation))
+                        state = TokenState.RightInit    
                 case TokenState.RightObjIdentify:
                     if off < len(input):
                         accum += cr
@@ -363,6 +491,8 @@ class ChildExpress(ConsoleLogable):
             off += 1
 
     def invoke(self):
+        """
+        """
         pass
 
     def __repr__(self):
@@ -376,7 +506,6 @@ class ChildExpress(ConsoleLogable):
         else:
             pass
         return f''
-
 
 class MethodParseState(IntEnum):
     Init = 0,
@@ -417,12 +546,14 @@ class MethodExpress(ConsoleLogable):
                         accum += cr
                     else:
                         accum = accum.strip()
-                        self.expr['methodparas'].append(accum)
+                        if accum != '':
+                            self.expr['methodparas'].append(accum)
                         accum = ''
                         state = MethodParseState.ParseArgs
                     if off == len(input) and cr == ')':
                         accum = accum.strip()
-                        self.expr['methodparas'].append(accum)
+                        if accum != '':
+                            self.expr['methodparas'].append(accum)
                         accum = ''
                         state = MethodParseState.End
                     pass
