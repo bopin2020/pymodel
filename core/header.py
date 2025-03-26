@@ -4,7 +4,7 @@ import hexdump
 import json
 
 from enum import IntEnum
-__VERSION__ = "v0.1"
+__VERSION__ = "v2.1"
 __AUTHOR__ = "bopin"
 #
 # reference Wireshark   filter section
