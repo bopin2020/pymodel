@@ -18,6 +18,7 @@ class RootExpress(ConsoleLogable):
 
     def register_context(self,name,ctx):
         self.ctxs[name] = ctx
+        self.report(f'register {name} into context bag',1)
 
     def unregister_context(self,name):
         self.ctxs.pop(name)

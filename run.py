@@ -2,6 +2,7 @@ import pytest
 from core.express import *
 from core.datamodel import *
 from core.lexer import *
+from shell import FilterShell
 
 def test_sub():
     register_envs()
@@ -84,6 +85,6 @@ if __name__ == '__main__':
     #test_sub()
     #test_rootexpress()
     #test_method_args()
-
-    test_context_inject_manager()
+    #test_context_inject_manager()
+    FilterShell().entry()
     pass
