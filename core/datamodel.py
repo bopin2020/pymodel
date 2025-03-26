@@ -1,10 +1,10 @@
-from header import *
+from core.header import *
 
 class ProcessModel:
     def __init__(self):
         self.modules = range(0,10)
         self.pid = 0
-        self.name = 'C:\\WINDOWS\\system32\\cmd.exe'
+        self.name = 'cmd.exe'
 
     def get_modules(self):
         return 

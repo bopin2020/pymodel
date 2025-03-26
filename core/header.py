@@ -22,5 +22,13 @@ DEBUG = 0
 
 class ConsoleLogable:
     def report(self,data, debug = 0):
-        if DEBUG or debug < 4:
+        if DEBUG or (debug > 0 and debug < 4):
+            print(data)
+
+    def report2(self,data,debug = 0):
+        if DEBUG:
+            print(data)
+
+    def report3(self,data,debug = 0):
+        if DEBUG:
             print(data)

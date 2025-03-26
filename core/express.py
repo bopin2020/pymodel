@@ -1,92 +1,7 @@
-from header import *
-
-primitiveType = [
-    #
-    #  symbol, alias
-    #
-    ("==","-eq"),
-    (">","-gt"),
-    (">=","-ge"),
-    ("<","-lt"),
-    ("<=","-le"),
-    ("!=","-ne"),
-]
-
-boundary = [
-    ("&&","AND"),
-    ("||","OR"),
-]
-
-obj = [
-    (".","->")
-]
-
-symbols = [
-    '(',
-    ')',
-    '{',
-    '}'
-]
-
-#
-#  register  environments
-#
-builtinVar = ["$true","$false","$null"]
-
-def register_envs():
-    [builtinVar.append(f'${x}') for x in list(os.environ)]
-
-class ParseState(IntEnum):
-    Init = 0,
-    Complete = 1,
-    Error = 2,
-    SubState = 3,
-    Operation = 4
-
-class TokenState(IntEnum):
-    LeftInit = 0,
-    RightInit = 1,
-    LeftObjIdentify = 2,
-    RightObjIdentify = 3,
-    BuiltInType = 4,
-    StateBoundary = 5,
-    Method = 6,
-    End = 7,
-    Unknown = 0xff
-
-class TokenType(IntEnum):
-    Var = 0,
-    LeftObjField = 1,
-    LeftObjMethod = 2,
-    Operation = 3,
-    RightObjField = 4,
-    RightObjMethod = 5,
-    Boundary = 6,
-    BuiltInVar = 7,
-    BuiltInCustomVar = 8,
-    Const = 9
+from core.expresstoken import *
+from core.lexer import *
 
 class MethodExpress: pass
-
-class Token():
-    def __init__(self,data,type : TokenType):
-        self.str = data
-        self.type = type
-
-    def __repr__(self):
-        return f'{self.type.name}  {self.str}'
-
-class Express():
-    def __init__(self):
-        pass
-
-class Operate(IntEnum):
-    EQ = 0,
-    NE = 1,
-    GT = 2,
-    LT = 3,
-    GE = 4,
-    LE = 5,
 
 class RootExpress(ConsoleLogable):
     def __init__(self):
@@ -137,14 +52,18 @@ class RootExpress(ConsoleLogable):
     
     def invoke(self,expression):
         try:
+            # firstly, lexer tokenizer
             self.parse(expression)
             #
-            # A single expression
+            # secondly,a single expression
             #
             if len(self.ctxtokens[0]) == 1:
                 name,method,args = self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
                 return self._eval(name,method,args)
             else:
+                #
+                # eval expression
+                #
                 return self.operate()
         except Exception as e:
             self.report(f'{str(e)}',2)
@@ -177,7 +96,11 @@ class RootExpress(ConsoleLogable):
                     if kv.str in ['>=' , '-ge']:
                         tmp = Operate.GE
                     if kv.str in ['<=' , '-le']:
-                        tmp = Operate.LE     
+                        tmp = Operate.LE    
+                    if kv.str in ['in' , '-in']:
+                        tmp = Operate.IN
+                    if kv.str in ['ct' , '-ct']:
+                        tmp = Operate.CONTAINS 
                 case TokenType.RightObjField:
                     name,objname,method,args = self.tokens[1]['name'],self.tokens[1]['objname'],self.tokens[1]['methodname'],self.tokens[1]['methodparas']
                     tmp = self._eval(objname,method,args)
@@ -193,7 +116,7 @@ class RootExpress(ConsoleLogable):
                 case TokenType.BuiltInCustomVar:
                     pass
                 case TokenType.Const:
-                    print(kv.str)
+                    self.report(kv.str)
                     if index > 0:
                         tmp = self.tokens[1]['name']
                         if '"' not in tmp:
@@ -212,7 +135,6 @@ class RootExpress(ConsoleLogable):
         compare type in primitiveType
         """
         tmp = list(self._eval_left_right())
-        print(tmp)
         match tmp[1]:
             case Operate.EQ:
                 return tmp[0] == tmp[2]
@@ -226,6 +148,10 @@ class RootExpress(ConsoleLogable):
                 return tmp[0] >= tmp[2]
             case Operate.LE:
                 return tmp[0] <= tmp[2]
+            case Operate.IN:
+                return tmp[0] in tmp[2]
+            case Operate.CONTAINS:
+                return tmp[2] in tmp[0]
 
     def eval(self,expression):
         pass
@@ -268,7 +194,7 @@ class RootExpress(ConsoleLogable):
                             off -= 1
                     pass
                 case ParseState.Complete:
-                    self.report("parse finished",1)
+                    self.report2("parse finished",1)
                     pass
                 case ParseState.Error:
                     pass
@@ -328,10 +254,12 @@ class ChildExpress(ConsoleLogable):
         pass
 
     def parse(self,input : str):
+        """Review state machine operations
+        """
         self.tokens.clear()
         self.substr :str = input
         off = 0
-        state = TokenState.LeftInit
+        state = TokenState.LeftInit # type: ignore
         accum = ''
         curleft = True
         self.left['isvar'] = ''
@@ -340,6 +268,16 @@ class ChildExpress(ConsoleLogable):
             cr = input[off] if off < len(input)-0 else ''
             nr = input[off + 1]  if off < len(input)-1 else ''
             nnr = input[off + 2]  if off < len(input)-2 else ''
+            #
+            # 1. parse const and var, built-in var
+            #       1 == 1
+            #       "" == ""
+            #       var1 == var2
+            #       $true == $true
+            # 2. parse obj fields and methods
+            #       $obj.names -ct $obj.name
+            # 
+            #
             match state:
                 case TokenState.LeftInit:
                     if cr != '.' and (cr != '-' and nr != '>'):
@@ -507,11 +445,6 @@ class ChildExpress(ConsoleLogable):
             pass
         return f''
 
-class MethodParseState(IntEnum):
-    Init = 0,
-    ParseArgs = 1,
-    End = 2
-
 class MethodExpress(ConsoleLogable):
     def __init__(self):
         self.expr = {
@@ -559,7 +492,7 @@ class MethodExpress(ConsoleLogable):
                     pass
                 case MethodParseState.End:
                     off -= 1
-                    self.report("method parse finished")
+                    self.report2("method parse finished")
                     pass
             off += 1
         return self.expr

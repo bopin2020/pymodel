@@ -1,6 +1,7 @@
 import pytest
-from express import *
-from datamodel import *
+from core.express import *
+from core.datamodel import *
+from core.lexer import *
 
 def test_sub():
     register_envs()
@@ -56,9 +57,23 @@ def test_context_inject_manager():
     print(re.invoke("process->get_pid() >= 0"))
     print(re.invoke("process->get_pid() <= 0"))
 
+    print(re.invoke("0x10 == 16"))
+    print(re.invoke("\"bo\" in \"bopin2020\""))
+    print(re.invoke("\"bo\" in \"bopin2020\""))
+
+    print(re.invoke("process->get_name() in $COMSPEC"))
+    print(re.invoke("$COMSPEC ct process->get_name()"))
+    print(re.invoke("\"cmd\" ct process->get_name()"))
+    return
+
     print(re.invoke("process->get_name() == \"bopin\""))
     print(re.invoke("process->get_name() == $COMSPEC"))
+
+    print(re.invoke("$COMSPEC == process->get_name()"))
     print(re.invoke("thread->get_tid(1,2) == 0"))
+    print(re.invoke("thread->get_tid(1,2) != 0"))
+
+    print(re.invoke("thread->get_tid(1,2) == 1 || thread->get_tid(1,2) == 0 || thread->get_tid(12,2) == 0x10"))
 
 def test_method_args():
     me = MethodExpress()
