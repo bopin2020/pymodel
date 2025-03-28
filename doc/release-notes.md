@@ -1,4 +1,4 @@
-version2.2
+version2.3
 fix bugs
 
 1. string const parse and quotes bug => process.get_name() ct "cmd"
