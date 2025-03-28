@@ -35,16 +35,24 @@ symbols = [
 #
 builtinVar = ["$true","$false","$null"]
 
+def unregister_envs():
+    [builtinVar.append(f'${x}') for x in list(os.environ)]
+
 def register_envs():
     [builtinVar.append(f'${x}') for x in list(os.environ)]
 
+def reload_envs():
+    unregister_envs()
+    register_envs()
 
 class ParseState(IntEnum):
     Init = 0,
     Complete = 1,
     Error = 2,
     SubState = 3,
-    Operation = 4
+    Operation = 4,
+    EnterParenthesis = 5,       # (
+    ExitParenthesis = 6,       # )
 
 class TokenState(IntEnum):
     LeftInit = 0,

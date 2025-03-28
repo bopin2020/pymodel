@@ -15,6 +15,11 @@ class RootExpress(ConsoleLogable):
         self.subexpress = ''
         self.tokens = []
         self.ctxtokens = []
+        self.ctxresults = []
+
+    def reload_context(self,name,ctx):
+        self.ctxs[name] = ctx
+        self.report(f're-register {name} into context bag',1)
 
     def register_context(self,name,ctx):
         self.ctxs[name] = ctx
@@ -22,6 +27,12 @@ class RootExpress(ConsoleLogable):
 
     def unregister_context(self,name):
         self.ctxs.pop(name)
+        self.report(f'unregister {name} from context bag',1)
+
+    def unregister_contexts(self):
+        tmp = list(self.ctxs.keys())
+        for k in tmp:
+            self.unregister_context(k)
 
     def format_objmodel(self):
         k = ""
@@ -59,28 +70,45 @@ class RootExpress(ConsoleLogable):
             # secondly,a single expression
             #
             if len(self.ctxtokens[0]) == 1:
-                name,method,args = self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
-                return self._eval(name,method,args)
+                if self.tokens[0]['ismethod'] == 'true':
+                    name,method,args = self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
+                    result = self._eval(name,method,args)
+                    self.report3(f'eval the single expression: {result}',2)
+                else:
+                    objname,field = self.tokens[0]['objname'],self.tokens[0]['field']
+                    result = self._eval(objname,field,[])
+                    self.report3(f'eval the single expression: {result}',2)
+                return result
             else:
                 #
                 # eval expression
                 #
-                return self.operate()
+                for token in self.ctxtokens:
+                    self.ctxresults.append(self.operate(list(self._map_to_value(token))))
+                return self.ctxresults
         except Exception as e:
             self.report(f'{str(e)}',2)
         return None
 
-    def _eval_left_right(self):
+    def _map_to_value(self,ctxtoken):
+        """Map the expression to get values and built-in var
+        """
         name,objname,method,args = '','','',''
         tmp = ''
         index = 0
-        for kv in self.ctxtokens[0]:
+        for kv in ctxtoken:
             match kv.type:
                 case TokenType.Var:
                     pass
                 case TokenType.LeftObjField:
-                    name,objname,method,args = self.tokens[0]['name'],self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
-                    tmp = self._eval(objname,method,args)
+                    if self.tokens[0]['ismethod'] == 'true':
+                        name,objname,method,args = self.tokens[0]['name'],self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
+                        tmp = self._eval(objname,method,args)
+                    else:
+                        objname,field = self.tokens[0]['objname'],self.tokens[0]['field']
+                        tmp = self._eval(objname,field,[])
+                        self.report3(f'eval the single expression: {tmp}',2)
+
                 case TokenType.LeftObjMethod:
                     name,objname,method,args = self.tokens[0]['name'],self.tokens[0]['objname'],self.tokens[0]['methodname'],self.tokens[0]['methodparas']
                     tmp = self._eval(objname,method,args)
@@ -118,16 +146,26 @@ class RootExpress(ConsoleLogable):
                     pass
                 case TokenType.Const:
                     self.report(kv.str)
-                    if index > 0:
-                        tmp = self.tokens[1]['name']
-                        if '"' not in tmp:
-                            tmp = int(tmp)
-                    else:
-                        tmp = self.tokens[0]['name']
+                    try:
+                        if index > 0:
+                            tmp : str = self.tokens[1]['name']
+                            if not tmp.startswith('\'') and not tmp.startswith('\"'):
+                                if tmp.startswith('0x'):
+                                    tmp = int(tmp,16)
+                                else:
+                                    tmp = int(tmp)
+                            #
+                            # single or double quotes
+                            #
+                            tmp = tmp.strip('"').strip('\'')
+                        else:
+                            tmp = self.tokens[0]['name']
+                    except:
+                        self.report3("const value type parse error")
             index += 1
             yield tmp
 
-    def operate(self):
+    def operate(self,tmp):
         """Make a determination between obj1 and obj2 which forms 
             1. obj eval expression(field and method return value)  
                                     =>  getpid() == getsessionid()
@@ -135,7 +173,6 @@ class RootExpress(ConsoleLogable):
             3. const compare        => 1 == 1    'bopin' == 'bopin'
         compare type in primitiveType
         """
-        tmp = list(self._eval_left_right())
         match tmp[1]:
             case Operate.EQ:
                 return tmp[0] == tmp[2]
@@ -167,6 +204,7 @@ class RootExpress(ConsoleLogable):
         self.builtinVar[var] = value
 
     def parse(self,input):
+        self.ctxresults.clear()
         self.tokens.clear()
         self.ctxtokens.clear()
         self.str = input
@@ -181,6 +219,9 @@ class RootExpress(ConsoleLogable):
                 case ParseState.Init:
                     tag = cr+nr
                     tag2 = cr+nr+nnr
+                    #
+                    # todo   keyword check
+                    #
                     c1 = list(map(lambda x: x[0],boundary))
                     c2 = list(map(lambda x: x[1],boundary))
                     if (tag not in c1 and tag not in c2) and (tag2 not in c1 and tag2 not in c2) and off < len(input):
@@ -207,7 +248,7 @@ class RootExpress(ConsoleLogable):
                     self.ctxtokens.append(ce.tokens)
                     self.subexpress = ''
                     accum = ''
-                    self.report(ce.tokens,2)
+                    self.report2(f'childexpress {ce.tokens}',2)
                     if off == len(input):
                         state = ParseState.Complete
                         off -= 1

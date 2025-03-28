@@ -47,3 +47,4 @@ bye bye!
 
 - [ ] const parse  =>  1 == 1, "bopin" in "bopin2020" and so on
 - [ ] compound expressions eval
+- [ ] tokenizer error report

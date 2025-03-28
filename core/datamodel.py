@@ -15,6 +15,10 @@ class ProcessModel:
     def get_name(self):
         return self.name
 
+    def set_name(self,name):
+        self.name = name
+        return OperateResult.Success
+
     def __repr__(self):
         return f'modules\nget_modules()'
     

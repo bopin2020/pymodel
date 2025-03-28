@@ -4,7 +4,7 @@ import hexdump
 import json
 
 from enum import IntEnum
-__VERSION__ = "v2.1"
+__VERSION__ = "v2.2"
 __AUTHOR__ = "bopin"
 #
 # reference Wireshark   filter section
@@ -32,3 +32,8 @@ class ConsoleLogable:
     def report3(self,data,debug = 0):
         if DEBUG or (debug > 0 and debug < 4):
             print(f'[***] {data}')
+
+class OperateResult(IntEnum):
+    Success = 0x0000,
+    UnknownError = 0x00fe,
+    Failed = 0x00ff,
