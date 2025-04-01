@@ -11,7 +11,9 @@ primitiveType = [
     ("<=","-le"),
     ("!=","-ne"),
     ("in","-in"),
-    ("ct","-ct"),
+    ("not in","-not in"),
+    ("contains","-contains"),
+    ("not contains","-not contains"),
 ]
 
 boundary = [
@@ -63,6 +65,8 @@ class TokenState(IntEnum):
     StateBoundary = 5,
     Method = 6,
     End = 7,
+    LeftConst = 8,
+    RightConst = 9,
     Unknown = 0xff
 
 class TokenType(IntEnum):
@@ -75,7 +79,8 @@ class TokenType(IntEnum):
     Boundary = 6,
     BuiltInVar = 7,
     BuiltInCustomVar = 8,
-    Const = 9
+    LeftConst = 9,
+    RightConst = 10
 
 class Operate(IntEnum):
     EQ = 0,
@@ -85,7 +90,9 @@ class Operate(IntEnum):
     GE = 4,
     LE = 5,
     IN = 6,
-    CONTAINS = 7
+    NOTIN = 7,
+    CONTAINS = 8,
+    NOTCONTAINS = 9,
 
 class MethodParseState(IntEnum):
     Init = 0,

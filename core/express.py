@@ -1,5 +1,6 @@
 from core.expresstoken import *
 from core.lexer import *
+from core.childexpress import *
 
 class MethodExpress: pass
 
@@ -16,10 +17,11 @@ class RootExpress(ConsoleLogable):
         self.tokens = []
         self.ctxtokens = []
         self.ctxresults = []
+        self.component_expression = []
 
     def reload_context(self,name,ctx):
         self.ctxs[name] = ctx
-        self.report(f're-register {name} into context bag',1)
+        #self.report(f're-register {name} into context bag',1)
 
     def register_context(self,name,ctx):
         self.ctxs[name] = ctx
@@ -128,8 +130,13 @@ class RootExpress(ConsoleLogable):
                         tmp = Operate.LE    
                     if kv.str in ['in' , '-in']:
                         tmp = Operate.IN
-                    if kv.str in ['ct' , '-ct']:
-                        tmp = Operate.CONTAINS 
+                    if kv.str in ['not in' , '-not in']:
+                        tmp = Operate.NOTIN
+                    if kv.str in ['not contains' , '-not contains']:
+                        tmp = Operate.NOTCONTAINS
+                    if kv.str in ['contains' , '-contains']:
+                        tmp = Operate.CONTAINS
+                    
                 case TokenType.RightObjField:
                     name,objname,method,args = self.tokens[1]['name'],self.tokens[1]['objname'],self.tokens[1]['methodname'],self.tokens[1]['methodparas']
                     tmp = self._eval(objname,method,args)
@@ -144,22 +151,46 @@ class RootExpress(ConsoleLogable):
                         tmp = os.environ[data]
                 case TokenType.BuiltInCustomVar:
                     pass
-                case TokenType.Const:
-                    self.report(kv.str)
+                case TokenType.LeftConst:
+                    self.report(kv.str,2)
                     try:
-                        if index > 0:
-                            tmp : str = self.tokens[1]['name']
-                            if not tmp.startswith('\'') and not tmp.startswith('\"'):
-                                if tmp.startswith('0x'):
-                                    tmp = int(tmp,16)
-                                else:
-                                    tmp = int(tmp)
-                            #
+                        #
+                        # const parse
+                        #
+                        tmp : str = self.tokens[0]['name']
+                        if '"' in self.tokens[0]['name']:                                              #
                             # single or double quotes
                             #
                             tmp = tmp.strip('"').strip('\'')
-                        else:
-                            tmp = self.tokens[0]['name']
+
+
+                        # try convert str to int
+                        if not tmp.startswith('\'') and not tmp.startswith('\"'):
+                            if tmp.startswith('0x'):
+                                tmp = int(tmp,16)
+                            else:
+                                tmp = int(tmp)
+                    except:
+                        self.report3("const value type parse error")
+                case TokenType.RightConst:
+                    self.report(kv.str)
+                    try:
+                        #
+                        # const parse
+                        #
+                        tmp : str = self.tokens[1]['name']
+                        if '"' in self.tokens[1]['name']:                                              #
+                            # single or double quotes
+                            #
+                            tmp = tmp.strip('"').strip('\'')
+
+
+                        # try convert str to int
+                        if not tmp.startswith('\'') and not tmp.startswith('\"'):
+                            if tmp.startswith('0x'):
+                                tmp = int(tmp,16)
+                            else:
+                                tmp = int(tmp)
                     except:
                         self.report3("const value type parse error")
             index += 1
@@ -211,6 +242,7 @@ class RootExpress(ConsoleLogable):
         off = 0
         state = ParseState.Init
         accum = ''
+        componenttokens = []
         while(off <= len(self.str)):
             cr = input[off] if off < len(input)-0 else ''
             nr = input[off + 1]  if off < len(input)-1 else ''
@@ -256,285 +288,12 @@ class RootExpress(ConsoleLogable):
                         state = ParseState.Init
                 case ParseState.Operation:
                     pass
-            off += 1
-
-class ChildExpress(ConsoleLogable):
-    def __init__(self):
-        self.substr = ""
-        self.left = {
-            "name": "",
-            "isobj": "",
-            "isvar": "",
-            "objname": "",
-            "field": "",
-            "ismethod": "",
-            "methodname": "",
-            "pref":"",
-            "methodparas": [
-
-            ]
-        }
-        self.operation = None
-        self.right = {
-            "name": "",
-            "isobj": "",
-            "isvar": "",
-            "objname": "",
-            "field": "",
-            "ismethod": "",
-            "methodname": "",
-            "pref":"",
-            "methodparas": [
-
-            ]
-        }
-
-        self.tokens = []
-
-    def is_method(self):
-        print("reflec succ")
-        pass
-
-    def parse(self,input : str):
-        """Review state machine operations
-        """
-        self.tokens.clear()
-        self.substr :str = input
-        off = 0
-        state = TokenState.LeftInit # type: ignore
-        accum = ''
-        curleft = True
-        self.left['isvar'] = ''
-        self.right['isvar'] = ''
-        while off <= len(input):
-            cr = input[off] if off < len(input)-0 else ''
-            nr = input[off + 1]  if off < len(input)-1 else ''
-            nnr = input[off + 2]  if off < len(input)-2 else ''
-            #
-            # 1. parse const and var, built-in var
-            #       1 == 1
-            #       "" == ""
-            #       var1 == var2
-            #       $true == $true
-            # 2. parse obj fields and methods
-            #       $obj.names -ct $obj.name
-            # 
-            #
-            match state:
-                case TokenState.LeftInit:
-                    if cr != '.' and (cr != '-' and nr != '>'):
-                        accum += cr
-                    else:
-                        accum = accum.strip()
-                        state = TokenState.LeftObjIdentify
-                        self.left['name'] = accum
-                        self.left['isobj'] = 'true'
-                        self.left['objname'] = accum
-                        self.left['pref'] = 'struct'
-                        accum = ''
-                    if cr == '-' and nr == '>':
-                        self.left['pref'] = 'pointer'
-                        off += 1
-                    if cr == '$':
-                        state = TokenState.BuiltInType
-                case TokenState.RightInit:
-                    if cr != '.' and (cr != '-' and nr != '>'):
-                        accum += cr
-                    else:
-                        accum = accum.strip()
-                        state = TokenState.RightObjIdentify
-                        self.right['name'] = accum
-                        self.right['isobj'] = 'true'
-                        self.right['objname'] = accum
-                        self.right['pref'] = 'struct'
-                        accum = ''
-                    
-                    if off < len(input):
-                        pass
-                    else:
-                        accum = accum.strip()
-                        state = TokenState.End
-                        # state = TokenState.RightObjIdentify
-                        self.right['name'] = accum
-                        self.right['isobj'] = 'false'
-                        accum = ''      
-                        off -= 1       
-
-                    if cr == '-' and nr == '>':
-                        self.right['pref'] = 'pointer'
-                        off += 1
-                    if cr == '$':
-                        state = TokenState.BuiltInType
-                case TokenState.LeftObjIdentify:
-                    tag = cr+nr
-                    tag2 = cr+nr+nnr
-                    #print(f'{tag}  {tag2}')
-                    c1 = list(map(lambda x: x[0],primitiveType))
-                    c2 = list(map(lambda x: x[1],primitiveType))
-                    if (cr not in c1) and (tag not in c1 and tag not in c2) and (tag2 not in c1 and tag2 not in c2) and off < len(input):
-                        accum += cr
-                    else:
-                        accum = accum.strip()
-                        if self.left['isvar'] != 'true':
-                            if '(' in accum and ')' in accum:
-                                self.left['ismethod'] = 'true'
-                                self.left['methodname'] = accum
-                                data = f'{self.left['objname']}{'->' if self.left['pref'] == 'pointer' else "."}{self.left['methodname']}'
-                                self.report(data)
-                                #
-                                # parse  method args
-                                #
-                                result = MethodExpress().parse(self.left['methodname'])
-                                self.left['methodname'] = result['methodname']
-                                self.left['methodparas'] = result['methodparas']
-                                self.report(json.dumps(self.left,indent=4),4)
-                                self.tokens.append(Token(data,TokenType.LeftObjMethod))
-                            else:
-                                self.left['ismethod'] = 'false'
-                                self.left['field'] = accum
-                                data = f'{self.left['objname']}{'->' if self.left['pref'] == 'pointer' else "."}{self.left['field']}'
-                                self.report(f'field=> {data}')
-                                self.tokens.append(Token(data,TokenType.LeftObjField))
-                        accum = ''
-                    if tag in c1:
-                        self.operation = tag
-                        self.tokens.append(Token(tag,TokenType.Operation))
-                        state = TokenState.RightInit    
-                        off += 2
-                        continue
-                    if tag2 in c2:
-                        self.operation = tag2
-                        self.tokens.append(Token(tag2,TokenType.Operation))
-                        state = TokenState.RightInit
-                        off += 2
-                        continue
-                    if cr == '>' or cr == '<':
-                        self.operation = cr
-                        self.tokens.append(Token(cr,TokenType.Operation))
-                        state = TokenState.RightInit    
-                case TokenState.RightObjIdentify:
-                    if off < len(input):
-                        accum += cr
-                    else:
-                        accum = accum.strip()
-                        if self.right['isvar'] != 'true':
-                            if '(' in accum and ')' in accum:
-                                self.right['ismethod'] = 'true'
-                                self.right['methodname'] = accum
-                                data = f'{self.right['objname']}{'->' if self.right['pref'] == 'pointer' else "."}{self.right['methodname']}'
-                                self.report(data)
-                                result = MethodExpress().parse(self.right['methodname'])
-                                self.right['methodname'] = result['methodname']
-                                self.right['methodparas'] = result['methodparas']
-                                print(json.dumps(self.right,indent=4))
-                                self.tokens.append(Token(data,TokenType.RightObjMethod))
-                            else:
-                                self.right['ismethod'] = 'false'
-                                self.right['field'] = accum
-                                data = f'{self.right['objname']}{'->' if self.right['pref'] == 'pointer' else "."}{self.right['field']}'
-                                self.report(f'field=> {data}')
-                                self.tokens.append(Token(data,TokenType.RightObjField))
-                        accum = ''                                        
-                case TokenState.BuiltInType:
-                    tag = cr+nr
-                    tag2 = cr+nr+nnr
-                    self.report(f'{tag}  {tag2}')
-                    c1 = list(map(lambda x: x[0],primitiveType))
-                    c2 = list(map(lambda x: x[1],primitiveType))
-                    if (tag not in c1 and tag not in c2) and (tag2 not in c1 and tag2 not in c2):
-                        accum += cr
-                    else:
-                        pass
-                    accum = accum.strip()
-                    if accum in builtinVar:
-                        self.tokens.append(Token(accum,TokenType.BuiltInVar))
-                        if curleft:
-                            state = TokenState.LeftObjIdentify
-                            self.left['isvar'] = 'true'
-                            curleft = False
-                        else:
-                            state = TokenState.RightObjIdentify
-                            self.right['isvar'] = 'true'
-                            curleft = True
-                        accum = ''
-                case TokenState.End:
-                    self.right['isobj'] = 'false'
-                    self.right['pref'] = 'struct'
-                    data = ''
-                    if self.right['isobj'] == 'true':
-                        data = f'{self.right['objname']}{'->' if self.right['pref'] == 'pointer' else "."}{self.right['methodname']}'
-                    else:
-                        data = f'{self.right['name']}'
-                    self.report(data)
-                    self.tokens.append(Token(data,TokenType.Const))              
-                    break
-            off += 1
-
-    def invoke(self):
-        """
-        """
-        pass
-
-    def __repr__(self):
-        if self.left['ismethod'] == 'true':
-            pass
-        else:
-            pass
-
-        if self.left['isobj'] == 'true':
-            pass
-        else:
-            pass
-        return f''
-
-class MethodExpress(ConsoleLogable):
-    def __init__(self):
-        self.expr = {
-            "methodname":"",
-            "methodparas":[
-
-            ]
-        }
-
-    def parse(self,input):
-        state = MethodParseState.Init
-        accum = ''
-        off = 0
-        self.expr['methodname'] = ''
-        self.expr['methodparas'] = []
-        while(off <= len(input)):
-            cr = input[off] if off < len(input)-0 else ''
-            nr = input[off + 1]  if off < len(input)-1 else ''
-            nnr = input[off + 2]  if off < len(input)-2 else ''
-            match state:                
-                case MethodParseState.Init:
-                    if cr not in symbols:
-                        accum += cr
-                    else:
-                        accum = accum.strip()
-                        self.expr['methodname'] = accum
-                        accum = ''
-                        state = MethodParseState.ParseArgs
+                case ParseState.EnterParenthesis:
+                    # parse  component expression
+                    componenttokens.clear()
+                    state = ParseState.Init
                     pass
-                case MethodParseState.ParseArgs:
-                    if cr != ',' and cr != ')':
-                        accum += cr
-                    else:
-                        accum = accum.strip()
-                        if accum != '':
-                            self.expr['methodparas'].append(accum)
-                        accum = ''
-                        state = MethodParseState.ParseArgs
-                    if off == len(input) and cr == ')':
-                        accum = accum.strip()
-                        if accum != '':
-                            self.expr['methodparas'].append(accum)
-                        accum = ''
-                        state = MethodParseState.End
-                    pass
-                case MethodParseState.End:
-                    off -= 1
-                    self.report2("method parse finished")
+                case ParseState.ExitParenthesis:
+                    # parse component expression finish
                     pass
             off += 1
-        return self.expr

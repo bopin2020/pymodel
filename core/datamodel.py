@@ -48,6 +48,18 @@ class ThreadModel:
     def get_tid(self,v1,v2):
         return self.id
 
+class SettingModel:
+    def __init__(self):
+        self._loglevel = 0
+
+    @property
+    def loglevel(self):
+        return self._loglevel
+    
+    @loglevel.setter
+    def loglevel(self,loglevel):
+        self._loglevel = loglevel
+
 class LexerError(Exception):
     """Lexer parse exception
     """
